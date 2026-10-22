@@ -16,11 +16,38 @@ var recoil := 0.0
 var can_shoot := true
 
 @onready var camera: Camera3D = $Camera3D
+@onready var shot_audio: AudioStreamPlayer = AudioStreamPlayer.new()
+@onready var reload_audio: AudioStreamPlayer = AudioStreamPlayer.new()
+
+func _generate_tone(freq: float, duration: float, volume: float) -> AudioStreamWAV:
+	var sample_rate := 22050
+	var sample_count := int(sample_rate * duration)
+	var data := PackedByteArray()
+	data.resize(sample_count * 2 * 2)
+
+	for i in range(sample_count):
+		var time := float(i) / float(sample_rate)
+		var s := sin(2.0 * PI * freq * time) * volume
+		var sample := int(clamp(s, -1.0, 1.0) * 32767.0)
+		data.encode_s16(i * 4, sample)
+		data.encode_s16(i * 4 + 2, sample)
+
+	var wav := AudioStreamWAV.new()
+	wav.format = AudioStreamWAV.FORMAT_16_BITS
+	wav.mix_rate = sample_rate
+	wav.stereo = true
+	wav.data = data
+	return wav
 
 func _ready() -> void:
 	add_to_group("player")
 	camera.current = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+	shot_audio.name = "ShotAudio"
+	reload_audio.name = "ReloadAudio"
+	add_child(shot_audio)
+	add_child(reload_audio)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
@@ -86,6 +113,8 @@ func shoot() -> void:
 	can_shoot = false
 	shoot_cooldown = 0.10
 	recoil = 0.17
+	shot_audio.stream = _generate_tone(180.0, 0.08, 0.35)
+	shot_audio.play()
 
 	var from = camera.global_position
 	var to = from - camera.global_transform.basis.z * 1000.0
@@ -109,6 +138,8 @@ func reload() -> void:
 	var loaded = min(needed, reserve_ammo)
 	ammo += loaded
 	reserve_ammo -= loaded
+	reload_audio.stream = _generate_tone(220.0, 0.18, 0.25)
+	reload_audio.play()
 
 	if get_parent() and get_parent().has_method("update_hud"):
 		get_parent().update_hud()
